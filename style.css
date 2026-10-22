@@ -1,0 +1,13 @@
+:root{--moss:#16301f;--gold:#f2b632;--ink:#0d1a12;--txt:#f4ecd8;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ink);color:var(--txt);font:17px/1.65 "Nunito Sans",system-ui,sans-serif;padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0)}
+header,main,footer{max-width:720px;margin:0 auto;padding:20px}
+header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;border-bottom:2px solid var(--gold)}
+header a.logo{font:900 26px Cinzel,Georgia,serif;color:var(--gold);text-decoration:none}
+nav a{color:var(--txt);margin-left:14px;font-size:15px}
+nav a:hover,a:hover{color:var(--gold)}
+a{color:var(--gold)}
+h1{font:900 34px Cinzel,Georgia,serif;color:var(--gold);margin:12px 0}
+h2{font:700 22px Cinzel,Georgia,serif;margin:28px 0 6px}
+.play{display:inline-block;background:var(--gold);color:#241a05;font-weight:800;padding:10px 26px;border-radius:4px 14px 4px 14px;text-decoration:none;margin:10px 0}
+footer{font-size:14px;opacity:.75;border-top:1px solid #2c4a37;margin-top:30px}

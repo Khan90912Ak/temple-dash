@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Temple Dash – Free Endless Runner Game</title>
+<meta name="description" content="Temple Dash is a free browser endless runner. Dodge stone blocks, slide under beams and collect gold. Play on phone or computer.">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Nunito+Sans:wght@600;800&display=swap" rel="stylesheet">
+<style>
+:root{--moss:#16301f;--stone:#8a8272;--gold:#f2b632;--teal:#1f8a80;--ember:#d9532b;--ink:#0d1a12;color-scheme:dark;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html,body{height:100%;margin:0;background:var(--ink);overflow:hidden;touch-action:none;font-family:"Nunito Sans",system-ui,sans-serif;color:#f4ecd8}
+body{position:relative}
+canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+#ov{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(8,18,12,.66);padding:16px}
+#card{max-width:340px;text-align:center;padding:26px 24px;background:var(--moss);border:3px solid var(--gold);border-radius:6px 22px 6px 22px;box-shadow:0 0 0 6px var(--ink),0 18px 50px rgba(0,0,0,.6)}
+h1{font-family:Cinzel,Georgia,serif;font-weight:900;font-size:40px;margin:0 0 6px;color:var(--gold);letter-spacing:1px}
+p{margin:6px 0;line-height:1.45;font-size:15px}
+.k{color:var(--gold);font-weight:800}
+button{margin-top:16px;font:800 18px "Nunito Sans",system-ui,sans-serif;padding:12px 34px;background:var(--gold);color:#241a05;border:0;border-radius:4px 14px 4px 14px;cursor:pointer}
+.lk{margin-top:16px;display:flex;gap:14px;justify-content:center;flex-wrap:wrap;font-size:13px}.lk a{color:#f4ecd8;opacity:.8}.lk a:hover{color:var(--gold);opacity:1}
+button:focus-visible{outline:3px solid #fff;outline-offset:3px}
+button:active{transform:translateY(2px)}
+</style>
+</head>
+<body>
+<canvas id="c" aria-label="Temple Dash game"></canvas>
+<div id="ov"><div id="card">
+<h1 id="t">Temple Dash</h1>
+<p id="s">Escape the collapsing temple. Grab gold, dodge the stone.</p>
+<p><span class="k">← →</span> change lane &nbsp; <span class="k">↑</span> jump &nbsp; <span class="k">↓</span> slide</p>
+<p>On phone: swipe in any direction.</p>
+<button id="go">Run</button>
+<nav class="lk"><a href="guide.html">How to play</a><a href="about.html">About</a><a href="contact.html">Contact</a><a href="privacy.html">Privacy</a></nav>
+</div></div>
+<script>
+(function(){
+var cv=document.getElementById('c'),x=cv.getContext('2d'),ov=document.getElementById('ov'),W,H,hor,base,unit,laneW,dpr;
+function rs(){dpr=Math.min(2,window.devicePixelRatio||1);W=cv.clientWidth;H=cv.clientHeight;cv.width=W*dpr;cv.height=H*dpr;x.setTransform(dpr,0,0,dpr,0,0);hor=H*.36;base=H*.88;unit=Math.min(H,W*1.6)*.2;laneW=Math.min(W*.3,H*.3)}
+window.addEventListener('resize',rs);rs();
+var best=0;try{best=+localStorage.getItem('td_best')||0}catch(e){}
+var st='menu',dist,speed,lane,px,jy,vy,slide,obs,nextSp,coins,score,t=0,shake=0;
+function S(d){return 1/(1+d*.09)}
+function Y(d){return hor+(base-hor)*S(d)}
+function X(l,d){return W/2+l*laneW*S(d)}
+function reset(){dist=0;speed=14;lane=0;px=0;jy=0;vy=0;slide=0;obs=[];nextSp=10;coins=0;score=0;shake=0}
+function spawn(){
+  var r=Math.random(),l=Math.floor(Math.random()*3)-1,D=62;
+  if(r<.3){obs.push({d:D,l:l,k:'block'})}
+  else if(r<.5){obs.push({d:D,l:l,k:'beam'})}
+  else if(r<.72){var l2=l;obs.push({d:D,l:l,k:'pillar'});if(Math.random()<.5){do{l2=Math.floor(Math.random()*3)-1}while(l2===l);obs.push({d:D,l:l2,k:'pillar'})}}
+  else{for(var i=0;i<6;i++)obs.push({d:D+i*2.2,l:l,k:'coin'})}
+}
+function end(){
+  st='over';if(score>best){best=score;try{localStorage.setItem('td_best',best)}catch(e){}}
+  document.getElementById('t').textContent='Temple closed';
+  document.getElementById('s').innerHTML='Score <span class="k">'+score+'</span> · Gold <span class="k">'+coins+'</span> · Best <span class="k">'+best+'</span>';
+  document.getElementById('go').textContent='Run again';ov.style.display='flex';
+}
+function start(){reset();st='play';ov.style.display='none'}
+document.getElementById('go').onclick=start;
+function act(a){
+  if(st!=='play')return;
+  if(a==='L'&&lane>-1)lane--;
+  if(a==='R'&&lane<1)lane++;
+  if(a==='U'&&jy<=0.01){vy=9.5;slide=0}
+  if(a==='D'){slide=.7;if(jy>0)vy=-14}
+}
+window.addEventListener('keydown',function(e){
+  var m={ArrowLeft:'L',a:'L',ArrowRight:'R',d:'R',ArrowUp:'U',w:'U',' ':'U',ArrowDown:'D',s:'D'}[e.key];
+  if(m){e.preventDefault();act(m)}
+  else if(e.key==='Enter'&&st!=='play')start();
+});
+var sx,sy;
+cv.addEventListener('pointerdown',function(e){sx=e.clientX;sy=e.clientY});
+cv.addEventListener('pointerup',function(e){
+  var dx=e.clientX-sx,dy=e.clientY-sy;
+  if(Math.max(Math.abs(dx),Math.abs(dy))<20){act('U');return}
+  if(Math.abs(dx)>Math.abs(dy))act(dx<0?'L':'R');else act(dy<0?'U':'D');
+});
+function update(dt){
+  speed=Math.min(36,speed+dt*.45);
+  dist+=speed*dt;score=Math.floor(dist/2)+coins*10;
+  px+=(lane-px)*Math.min(1,dt*14);
+  if(jy>0||vy>0){vy-=28*dt;jy+=vy*dt;if(jy<=0){jy=0;vy=0}}
+  if(slide>0)slide-=dt;
+  nextSp-=speed*dt;
+  if(nextSp<=0){spawn();nextSp=Math.max(7,14-speed*.2)+Math.random()*5}
+  for(var i=obs.length-1;i>=0;i--){
+    var o=obs[i];o.d-=speed*dt;
+    if(o.d<-3){obs.splice(i,1);continue}
+    if(o.dead)continue;
+    if(o.d<.8&&o.d>-.8&&Math.abs(px-o.l)<.55){
+      if(o.k==='coin'){o.dead=1;coins++}
+      else if(o.k==='block'&&jy<.5){hit()}
+      else if(o.k==='beam'&&slide<=0){hit()}
+      else if(o.k==='pillar'){hit()}
+    }
+  }
+}
+function hit(){shake=14;end()}
+function quad(x1,y1,x2,y2,x3,y3,x4,y4,c){x.fillStyle=c;x.beginPath();x.moveTo(x1,y1);x.lineTo(x2,y2);x.lineTo(x3,y3);x.lineTo(x4,y4);x.closePath();x.fill()}
+function draw(){
+  x.save();
+  if(shake>0){x.translate((Math.random()-.5)*shake,(Math.random()-.5)*shake);shake*=.85}
+  var g=x.createLinearGradient(0,0,0,hor);g.addColorStop(0,'#0f2a2a');g.addColorStop(1,'#e9a24a');
+  x.fillStyle=g;x.fillRect(0,0,W,hor+2);
+  x.fillStyle='#173a28';x.fillRect(0,hor,W,H-hor);
+  // sun
+  x.fillStyle='#ffd37a';x.beginPath();x.arc(W*.7,hor-6,unit*.5,Math.PI,0);x.fill();
+  // road stripes
+  var off=dist%3,idx=Math.floor(dist/3);
+  for(var i=40;i>=0;i--){
+    var d1=i*3-off,d2=d1+3;if(d1<0)d1=0;if(d2<=0)continue;
+    var s1=S(d1),s2=S(d2),y1=Y(d1),y2=Y(d2),hw1=laneW*1.5*s1,hw2=laneW*1.5*s2;
+    quad(W/2-hw1,y1,W/2+hw1,y1,W/2+hw2,y2,W/2-hw2,y2,((idx+i)%2)?'#7b7261':'#6c6354');
+    // jungle edges
+    var c2=((idx+i)%2)?'#1d4a2f':'#245a38';
+    quad(0,y1,W/2-hw1,y1,W/2-hw2,y2,0,y2,c2);
+    quad(W/2+hw1,y1,W,y1,W,y2,W/2+hw2,y2,c2);
+    if((idx+i)%2===0){
+      [-1,1].forEach(function(sd){
+        var px0=W/2+sd*(laneW*1.5+laneW*.35)*s2,ph=unit*1.6*s2,pw=unit*.28*s2;
+        x.fillStyle='#4a4436';x.fillRect(px0-pw/2,y2-ph,pw,ph);
+        x.fillStyle=(idx+i)%4===0?'#1f8a80':'#f2b632';x.fillRect(px0-pw/2,y2-ph,pw,ph*.12);
+      });
+    }
+  }
+  // lane lines
+  x.strokeStyle='rgba(0,0,0,.25)';x.lineWidth=2;
+  [-.5,.5].forEach(function(l){x.beginPath();x.moveTo(X(l,0),Y(0));x.lineTo(X(l,70),Y(70));x.stroke()});
+  // objects far to near
+  var list=obs.filter(function(o){return !o.dead&&o.d>-2}).sort(function(a,b){return b.d-a.d});
+  var pDrawn=false;
+  list.forEach(function(o){
+    if(!pDrawn&&o.d<0){player();pDrawn=true}
+    item(o);
+  });
+  if(!pDrawn)player();
+  x.restore();
+  // HUD
+  x.fillStyle='#f4ecd8';x.font='800 20px "Nunito Sans",system-ui,sans-serif';x.textAlign='left';
+  x.fillText('Score '+score,16,34);
+  x.fillStyle='#f2b632';x.textAlign='right';x.fillText('Gold '+coins+'   Best '+Math.max(best,score),W-16,34);
+}
+function item(o){
+  var s=S(o.d),cx=X(o.l,o.d),cy=Y(o.d),w=laneW*s*.8,u=unit*s;
+  if(o.k==='block'){
+    x.fillStyle='#8a8272';x.fillRect(cx-w/2,cy-u*.55,w,u*.55);
+    x.fillStyle='#b3aa95';x.fillRect(cx-w/2,cy-u*.55,w,u*.12);
+    x.fillStyle='#d9532b';x.fillRect(cx-w*.3,cy-u*.35,w*.6,u*.07);
+  }else if(o.k==='beam'){
+    var pw=u*.16;
+    x.fillStyle='#4a4436';x.fillRect(cx-w/2,cy-u*1.5,pw,u*1.5);x.fillRect(cx+w/2-pw,cy-u*1.5,pw,u*1.5);
+    x.fillStyle='#6b5a3a';x.fillRect(cx-w/2-pw*.5,cy-u*1.3,w+pw,u*.45);
+    x.fillStyle='#f2b632';x.fillRect(cx-w/2-pw*.5,cy-u*1.3,w+pw,u*.07);
+  }else if(o.k==='pillar'){
+    var pw2=w*.55;
+    x.fillStyle='#5b5444';x.fillRect(cx-pw2/2,cy-u*1.9,pw2,u*1.9);
+    x.fillStyle='#1f8a80';x.fillRect(cx-pw2/2,cy-u*1.9,pw2,u*.2);
+    x.fillStyle='rgba(0,0,0,.25)';x.fillRect(cx,cy-u*1.9,pw2/2,u*1.9);
+  }else{
+    var sp=Math.abs(Math.cos(t*5+o.d)),r=u*.2;
+    x.fillStyle='#f2b632';x.beginPath();x.ellipse(cx,cy-u*.5,Math.max(r*.25,r*sp),r,0,0,7);x.fill();
+    x.strokeStyle='#a8741a';x.lineWidth=Math.max(1,s*2);x.stroke();
+  }
+}
+function player(){
+  var cx=X(px,0),cy=base-jy*unit,sl=slide>0&&jy<=0,run=Math.sin(t*16)*unit*.12;
+  x.fillStyle='rgba(0,0,0,.3)';x.beginPath();x.ellipse(cx,base,unit*.3*(1-jy*.2),unit*.07,0,0,7);x.fill();
+  var bh=sl?unit*.32:unit*.62;
+  // legs
+  x.fillStyle='#2b2118';
+  if(!sl){x.fillRect(cx-unit*.14+(jy>0?0:run),cy-unit*.3,unit*.1,unit*.3);x.fillRect(cx+unit*.04-(jy>0?0:run),cy-unit*.3,unit*.1,unit*.3)}
+  // body
+  x.fillStyle='#1f8a80';x.fillRect(cx-unit*.2,cy-unit*.3-bh+(sl?unit*.3:0),unit*.4,bh);
+  x.fillStyle='#f2b632';x.fillRect(cx-unit*.2,cy-unit*.3-bh+(sl?unit*.3:0)+bh*.45,unit*.4,unit*.06);
+  // head
+  var hy=cy-unit*.3-bh-unit*.14+(sl?unit*.3:0);
+  x.fillStyle='#d9a36f';x.beginPath();x.arc(cx,hy,unit*.15,0,7);x.fill();
+  x.fillStyle='#d9532b';x.fillRect(cx-unit*.16,hy-unit*.16,unit*.32,unit*.08);
+  // scarf
+  x.fillStyle='#d9532b';x.fillRect(cx-unit*.2-unit*.25-Math.abs(run),hy+unit*.12,unit*.25+Math.abs(run),unit*.07);
+}
+var last=performance.now();
+function loop(n){
+  var dt=Math.min(.05,(n-last)/1000);last=n;t+=dt;
+  if(st==='play')update(dt);
+  else if(st==='menu'){dist+=6*dt;t+=0}
+  draw();requestAnimationFrame(loop);
+}
+reset();requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
